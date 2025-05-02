@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import Document
-from langchain_community.vectorstores import Pinecone as LangchainPinecone
+from langchain_community.vectorstores.pinecone import Pinecone as LangchainPinecone
 from rank_bm25 import BM25Okapi
 from pinecone import Pinecone, ServerlessSpec
 
@@ -22,9 +22,10 @@ from config.settings import (
 )
 from retrieval.chunking import adaptive_text_splitter
 
+
 class VectorStore:
     def __init__(self):
-        # Pinecone client init (v3)
+        # Initialize Pinecone client (v3)
         self.pc = Pinecone(api_key=PINECONE_API_KEY)
         if PINECONE_INDEX_NAME not in self.pc.list_indexes().names():
             self.pc.create_index(
@@ -33,6 +34,7 @@ class VectorStore:
                 metric="cosine",
                 spec=ServerlessSpec(cloud="aws", region=PINECONE_ENVIRONMENT)
             )
+
         self.embeddings = OpenAIEmbeddings(
             openai_api_key=OPENAI_API_KEY,
             model=EMBEDDINGS_MODEL
@@ -58,8 +60,9 @@ class VectorStore:
                 "source": "transcript"
             })
 
-        vectorstore = LangchainPinecone.from_existing_index(
-            index_name=PINECONE_INDEX_NAME,
+        index = self.pc.Index(PINECONE_INDEX_NAME)
+        vectorstore = LangchainPinecone(
+            index=index,
             embedding=self.embeddings,
             namespace=video_id
         )
@@ -81,8 +84,9 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         loop = asyncio.get_event_loop()
 
-        vectorstore = LangchainPinecone.from_existing_index(
-            index_name=PINECONE_INDEX_NAME,
+        index = self.pc.Index(PINECONE_INDEX_NAME)
+        vectorstore = LangchainPinecone(
+            index=index,
             embedding=self.embeddings,
             namespace=video_id
         )
