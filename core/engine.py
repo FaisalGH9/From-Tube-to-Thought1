@@ -7,7 +7,6 @@ from retrieval.vector_store import VectorStore
 from llm.provider import LLMProvider
 from cache.manager import CacheManager
 
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 
 class ProcessingEngine:
