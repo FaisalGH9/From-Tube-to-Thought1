@@ -1,18 +1,15 @@
 """
-Vector storage using Pinecone v2 and BM25 hybrid search
+Vector storage using Pinecone v3 and BM25 hybrid search
 """
 import os
 import asyncio
 from typing import List, Dict, Any
 
-# New pinecone import pattern
-import pinecone
-print("Pinecone version:", pinecone.__version__)
-
-from rank_bm25 import BM25Okapi
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import Document
 from langchain_community.vectorstores import Pinecone as LangchainPinecone
+from rank_bm25 import BM25Okapi
+from pinecone import Pinecone, ServerlessSpec
 
 from config.settings import (
     OPENAI_API_KEY,
@@ -25,33 +22,23 @@ from config.settings import (
 )
 from retrieval.chunking import adaptive_text_splitter
 
-
 class VectorStore:
-    """Vector + keyword hybrid search using Pinecone v2 and BM25"""
-
     def __init__(self):
-        # Initialize Pinecone client using new API pattern
-        self.pc = pinecone.Pinecone(api_key=PINECONE_API_KEY)
-        
-        # Get the index
-        self.index = self.pc.Index(PINECONE_INDEX_NAME)
-
-        # ✅ Setup OpenAI embeddings
+        # Pinecone client init (v3)
+        self.pc = Pinecone(api_key=PINECONE_API_KEY)
+        if PINECONE_INDEX_NAME not in self.pc.list_indexes().names():
+            self.pc.create_index(
+                name=PINECONE_INDEX_NAME,
+                dimension=1536,
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region=PINECONE_ENVIRONMENT)
+            )
         self.embeddings = OpenAIEmbeddings(
             openai_api_key=OPENAI_API_KEY,
             model=EMBEDDINGS_MODEL
         )
-
-        # ✅ Connect LangChain Pinecone wrapper
-        self.vectorstore = LangchainPinecone.from_existing_index(
-            index_name=PINECONE_INDEX_NAME,
-            embedding=self.embeddings,
-            namespace=""
-        )
-
         self.bm25_indexes = {}
 
-    # Rest of the code remains the same...
     async def index_transcript(self, transcript_data: Dict[str, Any], video_id: str) -> None:
         transcript_text = transcript_data.get("transcript", "")
         chunks = adaptive_text_splitter(
@@ -71,9 +58,15 @@ class VectorStore:
                 "source": "transcript"
             })
 
+        vectorstore = LangchainPinecone.from_existing_index(
+            index_name=PINECONE_INDEX_NAME,
+            embedding=self.embeddings,
+            namespace=video_id
+        )
+
         await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: self.vectorstore.add_texts(texts=texts, metadatas=metadatas)
+            lambda: vectorstore.add_texts(texts=texts, metadatas=metadatas)
         )
 
         docs = [Document(page_content=t, metadata=m) for t, m in zip(texts, metadatas)]
@@ -88,9 +81,15 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         loop = asyncio.get_event_loop()
 
+        vectorstore = LangchainPinecone.from_existing_index(
+            index_name=PINECONE_INDEX_NAME,
+            embedding=self.embeddings,
+            namespace=video_id
+        )
+
         vector_docs = await loop.run_in_executor(
             None,
-            lambda: self.vectorstore.similarity_search(query, k=k)
+            lambda: vectorstore.similarity_search(query, k=k)
         )
 
         if video_id not in self.bm25_indexes:
