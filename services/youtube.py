@@ -123,6 +123,9 @@ class YouTubeService:
             url: YouTube URL
             options: yt-dlp options dictionary
         """
+        # ✅ Add cookies.txt to bypass login-restricted videos
+        options["cookiefile"] = "cookies.txt"
+
         with yt_dlp.YoutubeDL(options) as ydl:
             ydl.download([url])
     
