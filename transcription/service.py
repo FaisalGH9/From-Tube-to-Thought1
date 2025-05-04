@@ -1,3 +1,4 @@
+
 """
 Transcription service with language detection using langdetect
 """
