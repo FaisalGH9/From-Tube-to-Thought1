@@ -1,11 +1,26 @@
-FROM python:3.12-slim
 
+# Use an official Python image
+FROM python:3.10-slim
+
+# Install ffmpeg and other dependencies
+RUN apt-get update && apt-get install -y ffmpeg git curl && apt-get clean
+
+# Set working directory
 WORKDIR /app
-COPY . /app
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-EXPOSE 8501
+# Install yt-dlp
+RUN pip install yt-dlp
 
-CMD streamlit run main.py --server.port=8501 --server.address=0.0.0.0
+# Copy the rest of the code
+COPY . .
+
+# Streamlit port config (Cloud Run uses $PORT env)
+ENV PORT=8080
+EXPOSE 8080
+
+# Run the app
+CMD ["streamlit", "run", "main.py", "--server.port=8081", "--server.enableCORS=false"]
